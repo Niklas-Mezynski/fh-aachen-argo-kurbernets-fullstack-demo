@@ -4,8 +4,6 @@ import { revalidatePath } from "next/cache";
 import { upvoteImage } from "../lib/votes";
 
 export async function upvoteAction(imageName: string) {
-  console.log(`Upvoting image: ${imageName}`);
-
   // Increment the vote count for the image
   upvoteImage(imageName);
 
