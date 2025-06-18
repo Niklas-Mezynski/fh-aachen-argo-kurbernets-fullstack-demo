@@ -118,14 +118,15 @@ spec:
         command: ["sh", "-c"]
         args:
           - |
-            # Install envsubst
-            apk add --no-cache gettext
+            # First apply the base deployment
+            kubectl apply -n argo --server-side --validate=false -f /src/k8s/deployment.yml
 
-            # Set the image tag and substitute variables
-            export IMAGE_TAG={{inputs.parameters.commit}}
-            envsubst < /src/k8s/deployment.yml > /tmp/deployment.yml
+            # Then patch the deployment with the specific commit image
+            COMMIT_HASH={{inputs.parameters.commit}}
+            kubectl patch deployment nextjs-app -n argo -p "{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"nextjs-app\",\"image\":\"ghcr.io/niklas-mezynski/argo-kurbernets-fullstack-demo:${COMMIT_HASH}\"}]}}}}"
 
-            kubectl apply -n argo --server-side --validate=false -f /tmp/deployment.yml
+            # Verify the rollout
+            kubectl rollout status deployment/nextjs-app -n argo --timeout=300s
 
     - name: process-images
       inputs:
@@ -164,5 +165,4 @@ spec:
             done
 
             echo "Image processing complete!"
-            ls -la /processed-images/
             ls -la /processed-images/
