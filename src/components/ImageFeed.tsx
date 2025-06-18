@@ -11,7 +11,7 @@ export default async function ImageFeed() {
     return {
       imageName,
       displayName: imageName
-        .replace(/\.(png|jpg|jpeg)$/i, "")
+        .replace(/\.(png|jpg|jpeg|gif|webp)$/i, "")
         .replace(/[_-]/g, " ")
         .replace(/\b\w/g, (l) => l.toUpperCase()),
       votes,
