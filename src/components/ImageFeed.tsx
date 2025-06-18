@@ -37,6 +37,8 @@ export default async function ImageFeed() {
           <div className="relative w-full">
             <Image
               src={`/${imageName}`}
+              // Disable Next.js image optimization for this example
+              loader={({ src }) => src}
               alt={displayName}
               width={800}
               height={600}
