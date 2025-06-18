@@ -14,6 +14,23 @@ docker tag argo-kurbernets-fullstack-demo:latest ghcr.io/niklas-mezynski/argo-ku
 docker push ghcr.io/niklas-mezynski/argo-kurbernets-fullstack-demo:latest
 ```
 
+Add Cluster Credentials for the workflow to work
+
+```bash
+kubectl create secret -n argo docker-registry ghcr-secret \
+  --docker-server=ghcr.io \
+  --docker-username=<your-github-username> \
+  --docker-password=<your-personal-access-token> \
+  --docker-email=<your-email>
+```
+
+For the workflow to be able to update the deployment within the cluster, you need to create a Role (or ClusterRole) and a RoleBinding (or ClusterRoleBinding) for the ServiceAccount used by your workflows.
+
+```bash
+kubectl apply -f k8s/argo-deployer-role.yaml
+kubectl apply -f k8s/argo-deployer-rolebinding.yaml
+```
+
 Submit workflow to Argo:
 
 ```bash
