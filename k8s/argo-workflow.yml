@@ -124,7 +124,7 @@ spec:
           - name: processed-images
             path: /processed-images
       container:
-        image: dpokidov/imagemagick:7.1.0-26-alpine
+        image: dpokidov/imagemagick:7.1.1-47-bullseye
         command: ["sh", "-c"]
         args:
           - |
