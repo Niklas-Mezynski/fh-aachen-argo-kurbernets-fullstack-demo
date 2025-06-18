@@ -14,7 +14,7 @@ spec:
     spec:
       containers:
         - name: nextjs-app
-          image: argo-kurbernets-fullstack-demo:demo
+          image: ghcr.io/niklas-mezynski/argo-kurbernets-fullstack-demo:latest
           ports:
             - containerPort: 3000
 ---

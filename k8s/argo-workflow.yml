@@ -1,0 +1,94 @@
+apiVersion: argoproj.io/v1alpha1
+kind: Workflow
+metadata:
+  generateName: argo-kurbernets-fullstack-demo-
+spec:
+  entrypoint: main
+  templates:
+    - name: main
+      dag:
+        tasks:
+          - name: clone
+            template: clone-repo
+          - name: test
+            dependencies: [clone]
+            template: run-tests
+            arguments:
+              artifacts:
+                - name: src
+                  from: "{{tasks.clone.outputs.artifacts.src}}"
+          - name: build-and-push
+            dependencies: [test]
+            template: build-and-push
+            arguments:
+              artifacts:
+                - name: src
+                  from: "{{tasks.clone.outputs.artifacts.src}}"
+          - name: deploy
+            dependencies: [build-and-push]
+            template: deploy-app
+          - name: process-images
+            dependencies: [clone]
+            template: process-images
+            arguments:
+              artifacts:
+                - name: src
+                  from: "{{tasks.clone.outputs.artifacts.src}}"
+
+    - name: clone-repo
+      container:
+        image: alpine/git
+        command: ["sh", "-c"]
+        args:
+          [
+            "git clone https://github.com/Niklas-Mezynski/fh-aachen-argo-kurbernets-fullstack-demo.git /src",
+          ]
+      outputs:
+        artifacts:
+          - name: src
+            path: /src
+
+    - name: run-tests
+      inputs:
+        artifacts:
+          - name: src
+            path: /src
+      container:
+        image: node:22-alpine
+        command: ["sh", "-c"]
+        args: ["cd /src && npm install && npm run test"]
+
+    - name: build-and-push
+      inputs:
+        artifacts:
+          - name: src
+            path: /src
+      container:
+        image: alpine
+        command: ["sh", "-c"]
+        args:
+          [
+            "echo 'Mock: Building Docker image...' && sleep 2 && echo 'Mock: Pushing image to GHCR...' && sleep 2",
+          ]
+
+    - name: deploy-app
+      container:
+        image: bitnami/kubectl
+        command: ["sh", "-c"]
+        args:
+          [
+            "echo 'Mock: Deploying app...' && sleep 2 && echo 'kubectl apply -f /src/k8s-deployment.yaml (hier würde das echte Deployment laufen)'",
+          ]
+
+    - name: process-images
+      inputs:
+        artifacts:
+          - name: src
+            path: /src
+      container:
+        image: alpine
+        command: ["sh", "-c"]
+        args:
+          [
+            "echo 'Mock: Processing images...' && sleep 2 && echo 'Mock: Done processing images!'",
+          ]
