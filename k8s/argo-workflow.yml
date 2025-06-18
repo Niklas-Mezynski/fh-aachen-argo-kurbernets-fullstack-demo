@@ -145,8 +145,12 @@ spec:
             mkdir -p /processed-images
             echo "Starting image processing..."
 
-            # Process each image in the public directory
-            for img in /src/public/*.{png,jpg,jpeg,PNG,JPG,JPEG}; do
+            # Debug: show what's in the public directory
+            echo "Contents of /src/public:"
+            ls -la /src/public/ || echo "No public directory found"
+
+            # Process each image type separately
+            find /src/public -type f \( -iname "*.png" -o -iname "*.jpg" -o -iname "*.jpeg" \) | while read img; do
               if [ -f "$img" ]; then
                 filename=$(basename "$img")
                 name_without_ext="${filename%.*}"
@@ -157,7 +161,7 @@ spec:
             done
 
             # Also copy any existing webp files
-            for webp in /src/public/*.{webp,WEBP}; do
+            find /src/public -type f -iname "*.webp" | while read webp; do
               if [ -f "$webp" ]; then
                 cp "$webp" /processed-images/
                 echo "Copied existing WebP: $(basename "$webp")"
@@ -165,4 +169,5 @@ spec:
             done
 
             echo "Image processing complete!"
+            echo "Final contents of /processed-images:"
             ls -la /processed-images/
