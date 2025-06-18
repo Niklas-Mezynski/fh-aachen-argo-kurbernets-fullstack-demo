@@ -43,6 +43,9 @@ spec:
               artifacts:
                 - name: src
                   from: "{{tasks.clone.outputs.artifacts.src}}"
+              parameters:
+                - name: commit
+                  value: "{{tasks.clone.outputs.parameters.commit}}"
 
     - name: clone-repo
       container:
@@ -108,11 +111,19 @@ spec:
         artifacts:
           - name: src
             path: /src
+        parameters:
+          - name: commit
       container:
         image: bitnami/kubectl:latest
         command: ["sh", "-c"]
         args:
-          - "kubectl apply -n argo --server-side --validate=false -f /src/k8s/deployment.yml"
+          - |
+            # Set the image tag environment variable
+            export IMAGE_TAG={{inputs.parameters.commit}}
+            kubectl apply -n argo --server-side --validate=false -f /src/k8s/deployment.yml
+        env:
+          - name: IMAGE_TAG
+            value: "{{inputs.parameters.commit}}"
 
     - name: process-images
       inputs:
@@ -151,4 +162,5 @@ spec:
             done
 
             echo "Image processing complete!"
+            ls -la /processed-images/
             ls -la /processed-images/

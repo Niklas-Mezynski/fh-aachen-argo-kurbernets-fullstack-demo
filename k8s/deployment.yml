@@ -14,9 +14,12 @@ spec:
     spec:
       containers:
         - name: nextjs-app
-          image: ghcr.io/niklas-mezynski/argo-kurbernets-fullstack-demo:latest
+          image: ghcr.io/niklas-mezynski/argo-kurbernets-fullstack-demo:${IMAGE_TAG:-latest}
           ports:
             - containerPort: 3000
+          env:
+            - name: IMAGE_TAG
+              value: "${IMAGE_TAG:-latest}"
 ---
 apiVersion: v1
 kind: Service
