@@ -17,26 +17,28 @@ spec:
               artifacts:
                 - name: src
                   from: "{{tasks.clone.outputs.artifacts.src}}"
+          - name: process-images
+            dependencies: [clone]
+            template: process-images
+            arguments:
+              artifacts:
+                - name: src
+                  from: "{{tasks.clone.outputs.artifacts.src}}"
           - name: build-and-push
-            dependencies: [test]
+            dependencies: [test, process-images]
             template: build-and-push
             arguments:
               artifacts:
                 - name: src
                   from: "{{tasks.clone.outputs.artifacts.src}}"
+                - name: processed-images
+                  from: "{{tasks.process-images.outputs.artifacts.processed-images}}"
               parameters:
                 - name: commit
                   value: "{{tasks.clone.outputs.parameters.commit}}"
           - name: deploy
             dependencies: [build-and-push]
             template: deploy-app
-            arguments:
-              artifacts:
-                - name: src
-                  from: "{{tasks.clone.outputs.artifacts.src}}"
-          - name: process-images
-            dependencies: [clone]
-            template: process-images
             arguments:
               artifacts:
                 - name: src
@@ -74,6 +76,8 @@ spec:
         artifacts:
           - name: src
             path: /src
+          - name: processed-images
+            path: /processed-images
         parameters:
           - name: commit
       container:
@@ -84,6 +88,7 @@ spec:
           - "--context=/src"
           - "--destination=ghcr.io/niklas-mezynski/argo-kurbernets-fullstack-demo:latest"
           - "--destination=ghcr.io/niklas-mezynski/argo-kurbernets-fullstack-demo:{{inputs.parameters.commit}}"
+          - "--build-arg=PROCESSED_IMAGES_PATH=/processed-images"
         env:
           - name: GOOGLE_APPLICATION_CREDENTIALS
             value: /secret/credentials.json
@@ -114,10 +119,36 @@ spec:
         artifacts:
           - name: src
             path: /src
+      outputs:
+        artifacts:
+          - name: processed-images
+            path: /processed-images
       container:
-        image: alpine
+        image: dpokidov/imagemagick:7.1.0-26-alpine
         command: ["sh", "-c"]
         args:
-          [
-            "echo 'Mock: Processing images...' && sleep 2 && echo 'Mock: Done processing images!'",
-          ]
+          - |
+            mkdir -p /processed-images
+            echo "Starting image processing..."
+
+            # Process each image in the public directory
+            for img in /src/public/*.{png,jpg,jpeg,PNG,JPG,JPEG}; do
+              if [ -f "$img" ]; then
+                filename=$(basename "$img")
+                name_without_ext="${filename%.*}"
+                echo "Converting $filename to WebP..."
+                magick "$img" -quality 85 "/processed-images/${name_without_ext}.webp"
+                echo "Converted $filename -> ${name_without_ext}.webp"
+              fi
+            done
+
+            # Also copy any existing webp files
+            for webp in /src/public/*.{webp,WEBP}; do
+              if [ -f "$webp" ]; then
+                cp "$webp" /processed-images/
+                echo "Copied existing WebP: $(basename "$webp")"
+              fi
+            done
+
+            echo "Image processing complete!"
+            ls -la /processed-images/

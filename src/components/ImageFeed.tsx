@@ -71,7 +71,31 @@ async function getImages() {
 
   try {
     const files = await fs.promises.readdir(publicDir);
-    return files.filter((file) => /\.(png|jpg|jpeg|gif|webp)$/i.test(file));
+    const imageFiles = files.filter((file) =>
+      /\.(png|jpg|jpeg|gif|webp)$/i.test(file)
+    );
+
+    // Prefer WebP versions over other formats
+    const preferredImages = new Set<string>();
+    const webpFiles = imageFiles.filter((file) => file.endsWith(".webp"));
+
+    // Add WebP files first
+    webpFiles.forEach((file) => {
+      preferredImages.add(file);
+    });
+
+    // Add non-WebP files only if WebP version doesn't exist
+    imageFiles.forEach((file) => {
+      if (!file.endsWith(".webp")) {
+        const nameWithoutExt = file.replace(/\.(png|jpg|jpeg|gif)$/i, "");
+        const webpVersion = `${nameWithoutExt}.webp`;
+        if (!webpFiles.includes(webpVersion)) {
+          preferredImages.add(file);
+        }
+      }
+    });
+
+    return Array.from(preferredImages);
   } catch (e) {
     console.error("Error reading public directory:", e);
     return [];
