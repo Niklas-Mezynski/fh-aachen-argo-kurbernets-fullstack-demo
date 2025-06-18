@@ -118,12 +118,14 @@ spec:
         command: ["sh", "-c"]
         args:
           - |
-            # Set the image tag environment variable
+            # Install envsubst
+            apk add --no-cache gettext
+
+            # Set the image tag and substitute variables
             export IMAGE_TAG={{inputs.parameters.commit}}
-            kubectl apply -n argo --server-side --validate=false -f /src/k8s/deployment.yml
-        env:
-          - name: IMAGE_TAG
-            value: "{{inputs.parameters.commit}}"
+            envsubst < /src/k8s/deployment.yml > /tmp/deployment.yml
+
+            kubectl apply -n argo --server-side --validate=false -f /tmp/deployment.yml
 
     - name: process-images
       inputs:
