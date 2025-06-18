@@ -1,8 +1,8 @@
 import fs from "fs";
-import Image from "next/image";
 import path from "path";
 import { getVotes } from "../lib/votes";
 import { UpvoteButton } from "./UpvoteButton";
+import { CorgiImage } from "./CorgiImage";
 
 export default async function ImageFeed() {
   const images = await getImages();
@@ -34,18 +34,11 @@ export default async function ImageFeed() {
           </div>
 
           {/* Image */}
-          <div className="relative w-full">
-            <Image
-              src={`/${imageName}`}
-              // Disable Next.js image optimization for this example
-              loader={({ src }) => src}
-              alt={displayName}
-              width={800}
-              height={600}
-              className="w-full h-auto object-cover"
-              priority={index < 2}
-            />
-          </div>
+          <CorgiImage
+            imageName={imageName}
+            displayName={displayName}
+            priority={index < 2}
+          />
 
           {/* Footer with upvote */}
           <div className="p-6 pt-4">
