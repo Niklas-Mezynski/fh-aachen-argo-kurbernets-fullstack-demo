@@ -86,15 +86,21 @@ spec:
           - name: commit
       container:
         image: gcr.io/kaniko-project/executor:latest
-        command: ["/kaniko/executor"]
+        command: ["sh", "-c"]
         args:
-          - "--dockerfile=/src/Dockerfile"
-          - "--context=/src"
-          - "--destination=localhost:5000/argo-demo:latest"
-          - "--destination=localhost:5000/argo-demo:{{inputs.parameters.commit}}"
-          - "--build-arg=PROCESSED_IMAGES_PATH=/processed-images"
-          - "--insecure"
-          - "--skip-tls-verify"
+          - |
+            # Get IPv4 node IP using kubectl (filter out IPv6)
+            NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' | tr ' ' '\n' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+            echo "Node IP (IPv4): $NODE_IP"
+
+            /kaniko/executor \
+              --dockerfile=/src/Dockerfile \
+              --context=/src \
+              --destination=$NODE_IP:30500/argo-demo:latest \
+              --destination=$NODE_IP:30500/argo-demo:{{inputs.parameters.commit}} \
+              --build-arg=PROCESSED_IMAGES_PATH=/processed-images \
+              --insecure \
+              --skip-tls-verify
 
     - name: deploy-app
       inputs:
@@ -109,7 +115,12 @@ spec:
         args:
           - |
             COMMIT_HASH={{inputs.parameters.commit}}
-            IMAGE_NAME="localhost:5000/argo-demo:${COMMIT_HASH}"
+
+            # Get IPv4 node IP using kubectl (filter out IPv6)
+            NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' | tr ' ' '\n' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+            echo "Node IP (IPv4): $NODE_IP"
+
+            IMAGE_NAME="$NODE_IP:30500/argo-demo:${COMMIT_HASH}"
 
             echo "Deploying with image: $IMAGE_NAME"
 

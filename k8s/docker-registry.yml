@@ -1,9 +1,10 @@
 apiVersion: apps/v1
-kind: DaemonSet
+kind: Deployment
 metadata:
   name: docker-registry
   namespace: argo
 spec:
+  replicas: 1
   selector:
     matchLabels:
       app: docker-registry
@@ -12,13 +13,11 @@ spec:
       labels:
         app: docker-registry
     spec:
-      hostNetwork: true # This makes it accessible on the host
       containers:
         - name: registry
           image: registry:2
           ports:
             - containerPort: 5000
-              hostPort: 5000 # Bind to host port
           env:
             - name: REGISTRY_STORAGE_FILESYSTEM_ROOTDIRECTORY
               value: /var/lib/registry
@@ -45,5 +44,17 @@ spec:
     - port: 5000
       targetPort: 5000
   type: ClusterIP
-  # Note: This service is now mainly for internal cluster DNS resolution
-  # The registry is also directly accessible on localhost:5000 due to hostNetwork
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: docker-registry-nodeport
+  namespace: argo
+spec:
+  selector:
+    app: docker-registry
+  ports:
+    - port: 5000
+      targetPort: 5000
+      nodePort: 30500
+  type: NodePort
