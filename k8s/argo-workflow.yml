@@ -93,6 +93,8 @@ spec:
           - "--destination=ttl.sh/argo-demo-{{workflow.uid}}:{{inputs.parameters.commit}}"
           - "--destination=ttl.sh/argo-demo-{{workflow.uid}}:latest"
           - "--build-arg=PROCESSED_IMAGES_PATH=/processed-images"
+          - "--cleanup"
+          - "--force"
 
     - name: deploy-app
       inputs:
