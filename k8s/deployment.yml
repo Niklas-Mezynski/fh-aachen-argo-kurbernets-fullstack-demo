@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: nextjs-app
-          image: localhost:5000/argo-demo:latest
+          image: ttl.sh/argo-demo-placeholder:latest
           ports:
             - containerPort: 3000
 ---

@@ -11,8 +11,6 @@ spec:
         tasks:
           - name: clone
             template: clone-repo
-          - name: get-node-ip
-            template: get-node-ip
           - name: test
             dependencies: [clone]
             template: run-tests
@@ -28,7 +26,7 @@ spec:
                 - name: src
                   from: "{{tasks.clone.outputs.artifacts.src}}"
           - name: build-and-push
-            dependencies: [test, process-images, get-node-ip]
+            dependencies: [test, process-images]
             template: build-and-push
             arguments:
               artifacts:
@@ -39,8 +37,6 @@ spec:
               parameters:
                 - name: commit
                   value: "{{tasks.clone.outputs.parameters.commit}}"
-                - name: node-ip
-                  value: "{{tasks.get-node-ip.outputs.parameters.node-ip}}"
           - name: deploy
             dependencies: [build-and-push]
             template: deploy-app
@@ -51,8 +47,6 @@ spec:
               parameters:
                 - name: commit
                   value: "{{tasks.clone.outputs.parameters.commit}}"
-                - name: node-ip
-                  value: "{{tasks.get-node-ip.outputs.parameters.node-ip}}"
 
     - name: clone-repo
       container:
@@ -81,22 +75,6 @@ spec:
         command: ["sh", "-c"]
         args: ["cd /src && npm install && npm run test"]
 
-    - name: get-node-ip
-      container:
-        image: bitnami/kubectl:latest
-        command: ["sh", "-c"]
-        args:
-          - |
-            # Get IPv4 node IP using kubectl (filter out IPv6)
-            NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' | tr ' ' '\n' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
-            echo "Node IP (IPv4): $NODE_IP"
-            echo "$NODE_IP" > /tmp/node-ip
-      outputs:
-        parameters:
-          - name: node-ip
-            valueFrom:
-              path: /tmp/node-ip
-
     - name: build-and-push
       inputs:
         artifacts:
@@ -106,18 +84,15 @@ spec:
             path: /processed-images
         parameters:
           - name: commit
-          - name: node-ip
       container:
         image: gcr.io/kaniko-project/executor:latest
         command: ["/kaniko/executor"]
         args:
           - "--dockerfile=/src/Dockerfile"
           - "--context=/src"
-          - "--destination={{inputs.parameters.node-ip}}:30500/argo-demo:latest"
-          - "--destination={{inputs.parameters.node-ip}}:30500/argo-demo:{{inputs.parameters.commit}}"
+          - "--destination=ttl.sh/argo-demo-{{workflow.uid}}:{{inputs.parameters.commit}}"
+          - "--destination=ttl.sh/argo-demo-{{workflow.uid}}:latest"
           - "--build-arg=PROCESSED_IMAGES_PATH=/processed-images"
-          - "--insecure"
-          - "--skip-tls-verify"
 
     - name: deploy-app
       inputs:
@@ -126,21 +101,18 @@ spec:
             path: /src
         parameters:
           - name: commit
-          - name: node-ip
       container:
         image: bitnami/kubectl:latest
         command: ["sh", "-c"]
         args:
           - |
             COMMIT_HASH={{inputs.parameters.commit}}
-            NODE_IP={{inputs.parameters.node-ip}}
-
-            IMAGE_NAME="$NODE_IP:30500/argo-demo:${COMMIT_HASH}"
+            IMAGE_NAME="ttl.sh/argo-demo-{{workflow.uid}}:${COMMIT_HASH}"
 
             echo "Deploying with image: $IMAGE_NAME"
 
             # Create a temporary deployment file with the correct image
-            sed "s|image: localhost:5000/argo-demo:latest|image: $IMAGE_NAME|g" \
+            sed "s|image: ttl.sh/argo-demo-placeholder:latest|image: $IMAGE_NAME|g" \
               /src/k8s/deployment.yml > /tmp/deployment-with-image.yml
 
             echo "Generated deployment manifest:"
@@ -153,6 +125,14 @@ spec:
             if ! kubectl rollout status deployment/nextjs-app -n argo --timeout=180s; then
               echo "Rollout failed, checking pod status..."
               kubectl get pods -n argo -l app=nextjs-app -o wide
+              kubectl describe pods -n argo -l app=nextjs-app
+              echo "Checking recent events..."
+              kubectl get events -n argo --sort-by='.lastTimestamp' | tail -10
+              exit 1
+            fi
+
+            echo "Deployment completed successfully!"
+            kubectl get pods -n argo -l app=nextjs-app -o wide
               kubectl describe pods -n argo -l app=nextjs-app
               echo "Checking recent events..."
               kubectl get events -n argo --sort-by='.lastTimestamp' | tail -10
