@@ -2,6 +2,7 @@ apiVersion: argoproj.io/v1alpha1
 kind: Workflow
 metadata:
   generateName: argo-kurbernets-fullstack-demo-
+  namespace: argo
 spec:
   entrypoint: main
   templates:
@@ -89,12 +90,10 @@ spec:
         args:
           - "--dockerfile=/src/Dockerfile"
           - "--context=/src"
-          - "--destination=ghcr.io/niklas-mezynski/argo-kurbernets-fullstack-demo:latest"
-          - "--destination=ghcr.io/niklas-mezynski/argo-kurbernets-fullstack-demo:{{inputs.parameters.commit}}"
+          - "--destination=docker-registry.argo.svc.cluster.local:5000/argo-demo:latest"
+          - "--destination=docker-registry.argo.svc.cluster.local:5000/argo-demo:{{inputs.parameters.commit}}"
           - "--build-arg=PROCESSED_IMAGES_PATH=/processed-images"
-        env:
-          - name: GOOGLE_APPLICATION_CREDENTIALS
-            value: /secret/credentials.json
+          - "--insecure"
         volumeMounts:
           - name: registry-secret
             mountPath: /kaniko/.docker/
@@ -118,15 +117,23 @@ spec:
         command: ["sh", "-c"]
         args:
           - |
-            # First apply the base deployment
-            kubectl apply -n argo --server-side --validate=false -f /src/k8s/deployment.yml
-
-            # Then patch the deployment with the specific commit image
             COMMIT_HASH={{inputs.parameters.commit}}
-            kubectl patch deployment nextjs-app -n argo -p "{\"spec\":{\"template\":{\"spec\":{\"containers\":[{\"name\":\"nextjs-app\",\"image\":\"ghcr.io/niklas-mezynski/argo-kurbernets-fullstack-demo:${COMMIT_HASH}\"}]}}}}"
+            IMAGE_NAME="docker-registry.argo.svc.cluster.local:5000/argo-demo:${COMMIT_HASH}"
 
-            # Verify the rollout
+            echo "Deploying with image: $IMAGE_NAME"
+
+            # Create a temporary deployment file with the correct image
+            sed "s|image: docker-registry.argo.svc.cluster.local:5000/argo-demo:latest|image: $IMAGE_NAME|g" \
+              /src/k8s/deployment.yml > /tmp/deployment-with-image.yml
+
+            # Apply the deployment (this works for both create and update)
+            kubectl apply -n argo -f /tmp/deployment-with-image.yml
+
+            echo "Waiting for rollout to complete..."
             kubectl rollout status deployment/nextjs-app -n argo --timeout=300s
+
+            echo "Deployment completed successfully!"
+            kubectl get pods -n argo -l app=nextjs-app
 
     - name: process-images
       inputs:

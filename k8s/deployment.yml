@@ -2,6 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: nextjs-app
+  namespace: argo
 spec:
   replicas: 1
   selector:
@@ -14,7 +15,7 @@ spec:
     spec:
       containers:
         - name: nextjs-app
-          image: ghcr.io/niklas-mezynski/argo-kurbernets-fullstack-demo:latest
+          image: docker-registry.argo.svc.cluster.local:5000/argo-demo:latest
           ports:
             - containerPort: 3000
 ---
@@ -22,6 +23,7 @@ apiVersion: v1
 kind: Service
 metadata:
   name: nextjs-app
+  namespace: argo
 spec:
   selector:
     app: nextjs-app
