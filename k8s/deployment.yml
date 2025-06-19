@@ -15,7 +15,7 @@ spec:
     spec:
       containers:
         - name: nextjs-app
-          image: docker-registry.argo.svc.cluster.local:5000/argo-demo:latest
+          image: localhost:5000/argo-demo:latest
           ports:
             - containerPort: 3000
 ---

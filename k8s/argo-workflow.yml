@@ -90,20 +90,11 @@ spec:
         args:
           - "--dockerfile=/src/Dockerfile"
           - "--context=/src"
-          - "--destination=docker-registry.argo.svc.cluster.local:5000/argo-demo:latest"
-          - "--destination=docker-registry.argo.svc.cluster.local:5000/argo-demo:{{inputs.parameters.commit}}"
+          - "--destination=localhost:5000/argo-demo:latest"
+          - "--destination=localhost:5000/argo-demo:{{inputs.parameters.commit}}"
           - "--build-arg=PROCESSED_IMAGES_PATH=/processed-images"
           - "--insecure"
-        volumeMounts:
-          - name: registry-secret
-            mountPath: /kaniko/.docker/
-      volumes:
-        - name: registry-secret
-          secret:
-            secretName: ghcr-secret
-            items:
-              - key: .dockerconfigjson
-                path: config.json
+          - "--skip-tls-verify"
 
     - name: deploy-app
       inputs:
@@ -118,22 +109,29 @@ spec:
         args:
           - |
             COMMIT_HASH={{inputs.parameters.commit}}
-            IMAGE_NAME="docker-registry.argo.svc.cluster.local:5000/argo-demo:${COMMIT_HASH}"
+            IMAGE_NAME="localhost:5000/argo-demo:${COMMIT_HASH}"
 
             echo "Deploying with image: $IMAGE_NAME"
 
             # Create a temporary deployment file with the correct image
-            sed "s|image: docker-registry.argo.svc.cluster.local:5000/argo-demo:latest|image: $IMAGE_NAME|g" \
+            sed "s|image: localhost:5000/argo-demo:latest|image: $IMAGE_NAME|g" \
               /src/k8s/deployment.yml > /tmp/deployment-with-image.yml
 
             # Apply the deployment (this works for both create and update)
             kubectl apply -n argo -f /tmp/deployment-with-image.yml
 
             echo "Waiting for rollout to complete..."
-            kubectl rollout status deployment/nextjs-app -n argo --timeout=300s
+            if ! kubectl rollout status deployment/nextjs-app -n argo --timeout=180s; then
+              echo "Rollout failed, checking pod status..."
+              kubectl get pods -n argo -l app=nextjs-app -o wide
+              kubectl describe pods -n argo -l app=nextjs-app
+              echo "Checking recent events..."
+              kubectl get events -n argo --sort-by='.lastTimestamp' | tail -10
+              exit 1
+            fi
 
             echo "Deployment completed successfully!"
-            kubectl get pods -n argo -l app=nextjs-app
+            kubectl get pods -n argo -l app=nextjs-app -o wide
 
     - name: process-images
       inputs:
