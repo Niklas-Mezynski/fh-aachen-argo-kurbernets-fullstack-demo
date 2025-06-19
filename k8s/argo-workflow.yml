@@ -85,7 +85,7 @@ spec:
         parameters:
           - name: commit
       container:
-        image: gcr.io/kaniko-project/executor:latest
+        image: gcr.io/kaniko-project/executor:v1.8.0
         command: ["/kaniko/executor"]
         args:
           - "--dockerfile=/src/Dockerfile"
@@ -93,8 +93,6 @@ spec:
           - "--destination=ttl.sh/argo-demo-{{workflow.uid}}:{{inputs.parameters.commit}}"
           - "--destination=ttl.sh/argo-demo-{{workflow.uid}}:latest"
           - "--build-arg=PROCESSED_IMAGES_PATH=/processed-images"
-          - "--cleanup"
-          - "--force"
 
     - name: deploy-app
       inputs:
