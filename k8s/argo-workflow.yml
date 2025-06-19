@@ -133,14 +133,6 @@ spec:
 
             echo "Deployment completed successfully!"
             kubectl get pods -n argo -l app=nextjs-app -o wide
-              kubectl describe pods -n argo -l app=nextjs-app
-              echo "Checking recent events..."
-              kubectl get events -n argo --sort-by='.lastTimestamp' | tail -10
-              exit 1
-            fi
-
-            echo "Deployment completed successfully!"
-            kubectl get pods -n argo -l app=nextjs-app -o wide
 
     - name: process-images
       inputs:
