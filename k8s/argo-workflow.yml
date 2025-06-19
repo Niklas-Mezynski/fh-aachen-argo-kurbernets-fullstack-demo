@@ -11,6 +11,8 @@ spec:
         tasks:
           - name: clone
             template: clone-repo
+          - name: get-node-ip
+            template: get-node-ip
           - name: test
             dependencies: [clone]
             template: run-tests
@@ -26,7 +28,7 @@ spec:
                 - name: src
                   from: "{{tasks.clone.outputs.artifacts.src}}"
           - name: build-and-push
-            dependencies: [test, process-images]
+            dependencies: [test, process-images, get-node-ip]
             template: build-and-push
             arguments:
               artifacts:
@@ -37,6 +39,8 @@ spec:
               parameters:
                 - name: commit
                   value: "{{tasks.clone.outputs.parameters.commit}}"
+                - name: node-ip
+                  value: "{{tasks.get-node-ip.outputs.parameters.node-ip}}"
           - name: deploy
             dependencies: [build-and-push]
             template: deploy-app
@@ -47,6 +51,8 @@ spec:
               parameters:
                 - name: commit
                   value: "{{tasks.clone.outputs.parameters.commit}}"
+                - name: node-ip
+                  value: "{{tasks.get-node-ip.outputs.parameters.node-ip}}"
 
     - name: clone-repo
       container:
@@ -75,6 +81,22 @@ spec:
         command: ["sh", "-c"]
         args: ["cd /src && npm install && npm run test"]
 
+    - name: get-node-ip
+      container:
+        image: bitnami/kubectl:latest
+        command: ["sh", "-c"]
+        args:
+          - |
+            # Get IPv4 node IP using kubectl (filter out IPv6)
+            NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' | tr ' ' '\n' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
+            echo "Node IP (IPv4): $NODE_IP"
+            echo "$NODE_IP" > /tmp/node-ip
+      outputs:
+        parameters:
+          - name: node-ip
+            valueFrom:
+              path: /tmp/node-ip
+
     - name: build-and-push
       inputs:
         artifacts:
@@ -84,23 +106,18 @@ spec:
             path: /processed-images
         parameters:
           - name: commit
+          - name: node-ip
       container:
         image: gcr.io/kaniko-project/executor:latest
-        command: ["sh", "-c"]
+        command: ["/kaniko/executor"]
         args:
-          - |
-            # Get IPv4 node IP using kubectl (filter out IPv6)
-            NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' | tr ' ' '\n' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
-            echo "Node IP (IPv4): $NODE_IP"
-
-            /kaniko/executor \
-              --dockerfile=/src/Dockerfile \
-              --context=/src \
-              --destination=$NODE_IP:30500/argo-demo:latest \
-              --destination=$NODE_IP:30500/argo-demo:{{inputs.parameters.commit}} \
-              --build-arg=PROCESSED_IMAGES_PATH=/processed-images \
-              --insecure \
-              --skip-tls-verify
+          - "--dockerfile=/src/Dockerfile"
+          - "--context=/src"
+          - "--destination={{inputs.parameters.node-ip}}:30500/argo-demo:latest"
+          - "--destination={{inputs.parameters.node-ip}}:30500/argo-demo:{{inputs.parameters.commit}}"
+          - "--build-arg=PROCESSED_IMAGES_PATH=/processed-images"
+          - "--insecure"
+          - "--skip-tls-verify"
 
     - name: deploy-app
       inputs:
@@ -109,16 +126,14 @@ spec:
             path: /src
         parameters:
           - name: commit
+          - name: node-ip
       container:
         image: bitnami/kubectl:latest
         command: ["sh", "-c"]
         args:
           - |
             COMMIT_HASH={{inputs.parameters.commit}}
-
-            # Get IPv4 node IP using kubectl (filter out IPv6)
-            NODE_IP=$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}' | tr ' ' '\n' | grep -E '^[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+$' | head -1)
-            echo "Node IP (IPv4): $NODE_IP"
+            NODE_IP={{inputs.parameters.node-ip}}
 
             IMAGE_NAME="$NODE_IP:30500/argo-demo:${COMMIT_HASH}"
 
@@ -127,6 +142,9 @@ spec:
             # Create a temporary deployment file with the correct image
             sed "s|image: localhost:5000/argo-demo:latest|image: $IMAGE_NAME|g" \
               /src/k8s/deployment.yml > /tmp/deployment-with-image.yml
+
+            echo "Generated deployment manifest:"
+            cat /tmp/deployment-with-image.yml
 
             # Apply the deployment (this works for both create and update)
             kubectl apply -n argo -f /tmp/deployment-with-image.yml
